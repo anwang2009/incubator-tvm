@@ -14,10 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from typing import Dict, List
 import tvm
 from tvm import relay
 from tvm.relay.expr_functor import ExprVisitor
-from typing import Dict, List
 
 
 class ExtractSubgraphs(ExprVisitor):
