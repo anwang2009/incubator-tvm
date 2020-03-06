@@ -14,13 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Function extraction pass"""
 from typing import Dict, List
 import tvm
 from tvm import relay
 from tvm.relay.expr_functor import ExprVisitor
 
 
-class ExtractSubgraphs(ExprVisitor):
+class ExtractSubmodules(ExprVisitor):
+    """Pass to extract per-layer submodules."""
     def __init__(self) -> None:
         super().__init__()
         self.submodule_dict = {}
@@ -42,7 +44,7 @@ class ExtractSubgraphs(ExprVisitor):
             self.collect_function(f)
         super().visit_function(f)
 
-    def tunable_task_dict(self) -> Dict[int, tvm.IRModule]:
+    def get_submodule_dict(self) -> Dict[int, tvm.IRModule]:
         return self.submodule_dict
 
 
@@ -59,8 +61,8 @@ def extract_submodules(mod: tvm.IRModule) -> List[tvm.IRModule]:
     List[tvm.IRModule]
         List of subgraph modules
     """
-    task_dict = extract_hashed_submodules(mod)
-    return list(task_dict.values())
+    submodule_dict = extract_hashed_submodules(mod)
+    return list(submodule_dict.values())
 
 
 def extract_hashed_submodules(mod: tvm.IRModule) -> Dict[int, tvm.IRModule]:
@@ -69,7 +71,7 @@ def extract_hashed_submodules(mod: tvm.IRModule) -> Dict[int, tvm.IRModule]:
     Parameters
     ----------
     mod : tvm.IRModule
-        Module to decompose into per-fused-layer tasks
+        Module to decompose into per-fused-layer IRModules
 
     Returns
     -------
@@ -78,6 +80,6 @@ def extract_hashed_submodules(mod: tvm.IRModule) -> Dict[int, tvm.IRModule]:
     """
     mod = relay.transform.SimplifyInference()(mod)
     mod = relay.transform.FuseOps(fuse_opt_level=3)(mod)
-    et = ExtractSubgraphs()
-    et.visit(mod['main'])
-    return et.tunable_task_dict()
+    extractor = ExtractSubmodules()
+    extractor.visit(mod['main'])
+    return extractor.get_submodule_dict()

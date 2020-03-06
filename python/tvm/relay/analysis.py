@@ -408,3 +408,23 @@ def structural_hash(value):
         msg = ("found value of type {0} expected" +
                "relay.Expr or relay.Type").format(type(value))
         raise TypeError(msg)
+
+
+def extract_functions(expr):
+    """Get functions from a relay expression
+    
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    Returns
+    -------
+    ret : Dict[tvm.relay.expr, int]
+        A dictionary mapping tvm.relay.Expr to structural hash.
+    """
+    return _analysis.extract_functions(expr)
+
+
+def test_test(expr):
+    return _analysis.test_test(expr)
