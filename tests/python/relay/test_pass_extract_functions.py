@@ -19,6 +19,7 @@ import tvm
 from tvm import relay
 from tvm.relay.extract_submodules import extract_hashed_submodules
 from tvm.relay.testing.resnet import get_workload
+from tvm.ir import IRModule
 
 
 def convoluted_network():
@@ -75,7 +76,10 @@ def test_extract_identity():
     mod = get_conv2d()
     mdict = relay.analysis.extract_functions(mod['main'])
     assert len(mdict) == 1
-    relay.analysis.assert_graph_equal(list(mdict.values())[0], mod)
+
+    mod["main"] = mod["main"].set_attribute(
+        "Primitive", tvm.tir.IntImm("int32", 1))
+    relay.analysis.assert_graph_equal(list(mdict.values())[0], mod["main"])
 
 
 def test_extract_convoluted_network():
@@ -86,37 +90,27 @@ def test_extract_convoluted_network():
     x = xs[0]
     y = xs[1]
 
-    def is_conv(mod: tvm.IRModule):
+    def is_conv(func):
         conv2d = relay.op.op.get("nn.conv2d")
-        call_node = mod["main"].body
+        call_node = func.body
         return call_node.op == conv2d
 
-    def is_conv_add(mod: tvm.IRModule):
+    def is_conv_add(func):
         add = relay.op.op.get("add")
-        call_node = mod["main"].body
+        call_node = func.body
         maybe_conv_module = tvm.IRModule.from_expr(call_node.args[0])
-        return call_node.op == add and is_conv(maybe_conv_module)
+        return call_node.op == add and is_conv(maybe_conv_module["main"])
 
-    # Order in dicts isn't consistent, so checking both orders is necessary
+    # Function traversal order isn't obvious, so checking both orders is more consistent
     return (is_conv(x) and is_conv_add(y)) or (is_conv_add(x) and is_conv(y))
 
 
 def test_extract_resnet():
-    mod, params = get_workload()
-    res = relay.analysis.extract_functions(mod['main'])
-    # extract_hashed_submodules(mod)
-
-
-def test_test():
-    print("get conv2d")
-    mod, params = convoluted_network()
-    print("test test")
-    res = relay.analysis.test_test(mod['main'])
-    print("res", res)
+    mod, _params = get_workload()
+    relay.analysis.extract_functions(mod['main'])
 
 
 if __name__ == '__main__':
-    # test_extract_identity()
-    # test_extract_convoluted_network()
-    # test_extract_resnet()
-    test_test()
+    test_extract_identity()
+    test_extract_convoluted_network()
+    test_extract_resnet()

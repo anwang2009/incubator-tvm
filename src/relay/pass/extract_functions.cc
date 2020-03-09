@@ -29,45 +29,35 @@
 namespace tvm {
 namespace relay {
 
-// class FunctionExtractor : private ExprVisitor {
-//  public:
-//   std::map<Function, int> Extract(const Expr& expr) {
-//     VisitExpr(expr);
-//     return std::map<Function, int>();
-//   }
+class FunctionExtractor : private ExprVisitor {
+ public:
+  Map<Integer, Function> Extract(const Expr& expr) {
+    std::vector<transform::Pass> passes = {transform::SimplifyInference(), transform::FuseOps(3)};
+    auto mod = IRModule::FromExpr(expr);
+    auto seq = transform::Sequential(passes);
+    mod = seq(mod);
 
-//  private:
-//   // std::unordered_map<>
+    VisitExpr(mod->Lookup("main"));
+    return this->hash_to_function;
+  }
 
-//   void VisitExpr_(const FunctionNode* n) final {
-//     bool result = true;
-//     std::cout << "FUNCTIONNODE " << n << std::endl;
-//   }
-// };
+ private:
+  Map<Integer, Function> hash_to_function;
 
-// std::map<Function, int> TestExtractor(const Expr& e) { return FunctionExtractor().Extract(e); }
+  void VisitExpr_(const FunctionNode* n) final {
+    if (n->IsPrimitive()) {
+      Function func = FunctionNode::make(n->params, n->body, n->ret_type, n->type_params, n->attrs);
+      size_t hash_ = StructuralHash()(func);
+      this->hash_to_function.Set(hash_, func);
+    }
 
-// TVM_REGISTER_GLOBAL("relay._analysis.extract_functions").set_body_typed(TestExtractor);
+    ExprVisitor::VisitExpr_(n);
+  }
+};
 
+Map<Integer, Function> TestExtractor(const Expr& e) { return FunctionExtractor().Extract(e); }
 
-// bool TestTest(const Expr& e) {
-//   return true;
-// }
-
-// TVM_REGISTER_GLOBAL("relay._analysis.test").set_body_typed(TestTest);
-
-// namespace transform {
-
-// Pass ExtractFunctions() {
-//   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-//     [=](Function f, IRModule m, PassContext pc) {
-//     return Downcast<Function>(ExtractFunctions(f, m));
-//   };
-//   return CreateFunctionPass(pass_func, 1, "ExtractFunctions",
-//                             {tir::StringImmNode::make("InferType")});
-// }
-
-// } // namespace transform
+TVM_REGISTER_GLOBAL("relay._analysis.extract_functions").set_body_typed(TestExtractor);
 
 }  // namespace relay
 }  // namespace tvm

@@ -420,10 +420,14 @@ def extract_functions(expr):
 
     Returns
     -------
-    ret : Dict[tvm.relay.expr, int]
-        A dictionary mapping tvm.relay.Expr to structural hash.
+    ret : Dict[int, tvm.relay.function]
+        A dictionary mapping structural hash to tvm.relay.function.
     """
-    return _analysis.extract_functions(expr)
+    container_map = _analysis.extract_functions(expr)
+    items = {}
+    for hash_, expr in container_map.items():
+        items[hash_.value] = expr
+    return items
 
 
 def test_test(expr):
