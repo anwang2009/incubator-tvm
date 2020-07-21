@@ -78,3 +78,7 @@ RUN bash /install/ubuntu_install_tensorflow.sh
 # Arm(R) Compute Library
 COPY install/ubuntu_install_arm_compute_lib.sh /install/ubuntu_install_arm_compute_lib.sh
 RUN bash /install/ubuntu_install_arm_compute_lib.sh
+
+# Install protoc and generate python from protobuf
+COPY install/ubuntu_install_protoc.sh /install/ubuntu_install_protoc.sh
+RUN bash /install/ubuntu_install_protoc.sh

@@ -47,6 +47,10 @@ RUN bash /install/ubuntu_install_androidsdk.sh
 COPY install/ubuntu_install_vulkan.sh /install/ubuntu_install_vulkan.sh
 RUN bash /install/ubuntu_install_vulkan.sh
 
+# Install protoc and generate python from protobuf
+COPY install/ubuntu_install_protoc.sh /install/ubuntu_install_protoc.sh
+RUN bash /install/ubuntu_install_protoc.sh
+
 ENV VULKAN_SDK /usr/local/VulkanSDK/1.0.65.0/x86_64
 ENV PATH ${PATH}:${VULKAN_SDK}/bin
 ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:${VULKAN_SDK}/lib

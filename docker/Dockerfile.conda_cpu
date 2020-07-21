@@ -19,6 +19,10 @@ FROM ubuntu:16.04
 
 RUN apt-get update && apt-get install -y bzip2 curl sudo binutils && rm -rf /var/lib/apt/lists/*
 
+# Install protoc and generate python from protobuf
+COPY install/ubuntu_install_protoc.sh /install/ubuntu_install_protoc.sh
+RUN bash /install/ubuntu_install_protoc.sh
+
 RUN curl -o ~/miniconda.sh -O https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh  && \
      chmod +x ~/miniconda.sh && \
      ~/miniconda.sh -b -p /opt/conda && \

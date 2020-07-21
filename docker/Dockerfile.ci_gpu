@@ -94,6 +94,10 @@ RUN bash /install/ubuntu_install_antlr.sh
 COPY install/ubuntu_install_nnpack.sh /install/ubuntu_install_nnpack.sh
 RUN bash /install/ubuntu_install_nnpack.sh
 
+# Install protoc and generate python from protobuf
+COPY install/ubuntu_install_protoc.sh /install/ubuntu_install_protoc.sh
+RUN bash /install/ubuntu_install_protoc.sh
+
 # Environment variables
 ENV PATH=/usr/local/nvidia/bin:${PATH}
 ENV PATH=/usr/local/cuda/bin:${PATH}

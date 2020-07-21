@@ -29,5 +29,9 @@ RUN pip3 install mxnet tensorflow keras gluoncv dgl
 COPY install/install_tvm_cpu.sh /install/install_tvm_cpu.sh
 RUN bash /install/install_tvm_cpu.sh
 
+# Install protoc and generate python from protobuf
+COPY install/ubuntu_install_protoc.sh /install/ubuntu_install_protoc.sh
+RUN bash /install/ubuntu_install_protoc.sh
+
 # Environment variables
 ENV PYTHONPATH=/usr/tvm/python:/usr/tvm/topi/python:/usr/tvm/vta/python:${PYTHONPATH}

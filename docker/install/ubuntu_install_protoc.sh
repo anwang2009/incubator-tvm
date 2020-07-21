@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,24 +16,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Minimum docker image for demo purposes
-# CI docker GPU env
-# tag: v0.54
-FROM tvmai/ci-gpu:v0.55
+set -e
+set -u
+set -o pipefail
 
-# Jupyter notebook.
-RUN pip3 install matplotlib Image "Pillow<7" jupyter[notebook]
+# Download protoc release binary and install.
+PROTOC_ZIP=protoc-3.12.3-linux-x86_64.zip
+curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v3.12.3/$PROTOC_ZIP
+unzip -o $PROTOC_ZIP -d /usr/local bin/protoc
+chmod +x /usr/local/bin/protoc
+unzip -o $PROTOC_ZIP -d /usr/local 'include/*'
+rm -f $PROTOC_ZIP
 
-# Build TVM
-COPY install/install_tvm_gpu.sh /install/install_tvm_gpu.sh
-RUN bash /install/install_tvm_gpu.sh
+# Generate python code from protobuf schemas
 
-# Install protoc and generate python from protobuf
-COPY install/ubuntu_install_protoc.sh /install/ubuntu_install_protoc.sh
-RUN bash /install/ubuntu_install_protoc.sh
-
-# Environment variables
-ENV PYTHONPATH=/usr/tvm/python:/usr/tvm/topi/python:/usr/tvm/vta/python:${PYTHONPATH}
-ENV PATH=/usr/local/nvidia/bin:${PATH}
-ENV PATH=/usr/local/cuda/bin:${PATH}
-ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/nvidia/lib64:${LD_LIBRARY_PATH}

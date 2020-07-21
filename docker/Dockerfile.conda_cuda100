@@ -21,6 +21,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
             bzip2 curl sudo binutils && \
     rm -rf /var/lib/apt/lists/*
 
+# Install protoc and generate python from protobuf
+COPY install/ubuntu_install_protoc.sh /install/ubuntu_install_protoc.sh
+RUN bash /install/ubuntu_install_protoc.sh
+
 RUN  curl -fsSL http://developer.download.nvidia.com/compute/redist/cudnn/v7.6.0/cudnn-10.0-linux-x64-v7.6.0.64.tgz -O && \
     tar --no-same-owner -xzf cudnn-10.0-linux-x64-v7.6.0.64.tgz -C /usr/local && \
     rm cudnn-10.0-linux-x64-v7.6.0.64.tgz && \

@@ -43,3 +43,7 @@ RUN bash /install/ubuntu1804_install_clang_format.sh
 
 COPY install/ubuntu_install_nodejs.sh /install/ubuntu_install_nodejs.sh
 RUN bash /install/ubuntu_install_nodejs.sh
+
+# Install protoc and generate python from protobuf
+COPY install/ubuntu_install_protoc.sh /install/ubuntu_install_protoc.sh
+RUN bash /install/ubuntu_install_protoc.sh

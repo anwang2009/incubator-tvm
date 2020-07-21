@@ -22,3 +22,7 @@ FROM ubuntu:16.04
 RUN apt-get update && apt-get install -y sudo wget
 RUN apt-get update && apt-get install -y ruby-full build-essential zlib1g-dev
 RUN gem install jekyll bundler
+
+# Install protoc and generate python from protobuf
+COPY install/ubuntu_install_protoc.sh /install/ubuntu_install_protoc.sh
+RUN bash /install/ubuntu_install_protoc.sh

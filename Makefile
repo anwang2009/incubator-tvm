@@ -54,6 +54,10 @@ cpptest:
 crttest:
 	@mkdir -p build && cd build && cmake .. && $(MAKE) crttest
 
+proto:
+	protoc -I=$(ROOTDIR)/proto --proto_path=$(ROOTDIR)/proto\
+		--python_out=$(ROOTDIR)/python/tvm/generated $(ROOTDIR)/proto
+
 # EMCC; Web related scripts
 EMCC_FLAGS= -std=c++11 -DDMLC_LOG_STACK_TRACE=0\
 	-Oz -s RESERVED_FUNCTION_POINTERS=2 -s MAIN_MODULE=1 -s NO_EXIT_RUNTIME=1\
