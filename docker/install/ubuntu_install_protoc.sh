@@ -29,4 +29,5 @@ unzip -o $PROTOC_ZIP -d /usr/local 'include/*'
 rm -f $PROTOC_ZIP
 
 # Generate python code from protobuf schemas
-
+TVM_HOME=/usr/tvm
+protoc -I=${TVM_HOME}/proto --python_out=${TVM_HOME}/python/tvm/generated ${TVM_HOME}/proto/*

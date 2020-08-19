@@ -115,10 +115,10 @@ class Task(object):
     args: Tuple
         Positional argument of func
     """
-    def __init__(self, name, args):
+    def __init__(self, name, args, kwargs={}):
         self.name = name
         self.args = args
-        self.kwargs = {}  # currently unused
+        self.kwargs = kwargs
 
         # init null config space
         self.config_space = None

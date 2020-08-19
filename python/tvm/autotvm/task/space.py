@@ -26,14 +26,19 @@ entity in the space. This entity contains deterministic parameters.
 """
 from __future__ import absolute_import as _abs
 
+import base64
 import itertools
 import functools
+import json
 import math
 from collections import namedtuple, OrderedDict
 import numpy as np
+from google.protobuf import json_format
+import pickle
 
 from tvm.te import schedule, thread_axis
 from tvm.autotvm.util import get_const_int
+from tvm.generated import AutoTVMLog_pb2
 
 Axis = namedtuple('Axis', ['space', 'index'])
 
@@ -884,31 +889,143 @@ class ConfigEntity(ConfigSpace):
         """
         return {x: x.val for x in self._entity_map.values() if isinstance(x, OtherOptionEntity)}
 
-    def to_json_dict(self):
-        """convert to a json serializable dictionary
+    def encode(self, protocol='json'):
+        """Encode this ConfigEntity with the specified protocol.
+
+        Parameters
+        ----------
+        protocol : str, optional
+            Serialization protocol that is one of (protobuf, json), by default json.
 
         Return
         ------
-        json_dict: dict
-            a json serializable dictionary
+        encoded_obj : Union[AutoTVMLog_pb2.Config, Dict]
+            If protocol=protobuf, a protobuf representation of this ConfigEntity.
+            If protocol=json, a json dict representation of this ConfigEntity.
+
+        Raises
+        ------
+        RuntimeError if there is an attempt to encode an unregistered entity type,
+            or if an unsupported serialization protocol is specified.
         """
-        ret = {}
-        ret['index'] = int(self.index)
-        ret['code_hash'] = self.code_hash
-        entity_map = []
-        for k, v in self._entity_map.items():
-            if isinstance(v, SplitEntity):
-                entity_map.append((k, 'sp', v.size))
-            elif isinstance(v, ReorderEntity):
-                entity_map.append((k, 're', v.perm))
-            elif isinstance(v, AnnotateEntity):
-                entity_map.append((k, 'an', v.anns))
-            elif isinstance(v, OtherOptionEntity):
-                entity_map.append((k, 'ot', v.val))
+        config_pb = AutoTVMLog_pb2.Config()
+
+        # Encode index.
+        config_pb.config_v1.index = self.index
+
+        # Encode code_hash.
+        if self.code_hash is not None:
+            config_pb.config_v1.code_hash = self.code_hash
+
+        # Encode entities.
+        for knob_name, entity in self._entity_map.items():
+            entity_pb = AutoTVMLog_pb2.Entity()
+            entity_pb.knob_name = knob_name
+            if isinstance(entity, SplitEntity):
+                entity_pb.split.size[:] = entity.size
+            elif isinstance(entity, ReorderEntity):
+                entity_pb.reorder.permutation[:] = entity.perm
+            elif isinstance(entity, AnnotateEntity):
+                entity_pb.annotate.annotations[:] = entity.anns
+            elif isinstance(entity, OtherOptionEntity):
+                # NOTE: From the pickle docs; Pickling is not safe against maliciously
+                # constructed data. Never unpickle data received from an untrusted
+                # or unauthenticated source.
+                # We pickle here because the OtherOptionEntity supports arbitrary
+                # values; Protobuf does not support arbitrary values.
+                entity_pb.other_option.value = pickle.dumps(entity.val)
             else:
-                raise RuntimeError("Invalid entity instance: " + v)
-        ret['entity'] = entity_map
-        return ret
+                raise RuntimeError("Invalid entity instance: " + entity)
+
+            config_pb.config_v1.entities.append(entity_pb)
+
+        # Serialize protobuf to the requested protocol.
+        if protocol == 'protobuf':
+            return config_pb
+        if protocol == 'json':
+            # Unpickle the opaquely-typed values for readability in the json dict.
+            json_dict = json_format.MessageToDict(config_pb)
+            if json_dict.get("configV1", {}).get("entities") is not None:
+                entities = json_dict["configV1"]["entities"]
+                for entity in entities:
+                    if entity.WhichOneof("entity") == "other_option":
+                        entity["value"] = base64.b64decode(pickle.loads(entity["value"]).encode())
+
+            return json_dict
+        raise RuntimeError("Invalid serialization protocol: " + protocol)
+
+    @staticmethod
+    def decode(encoded_obj, protocol='json'):
+        """Decode this ConfigEntity from the specified protocol.
+
+        Parameters
+        ----------
+        encoded_obj: Union[AutoTVMLog_pb2.Config, Dict]
+            If protocol=protobuf, a protobuf representation of this ConfigEntity.
+            If protocol=json, a json dict representation of this ConfigEntity.
+        protocol : str, optional
+            Serialization protocol that is one of (protobuf, json), by default json.
+
+        Return
+        ------
+        config: Optional[ConfigEntity]
+            ConfigEntity decoded from the given encoded_obj. None if decoding fails.
+
+        Raises
+        ------
+        RuntimeError if an unsupported serialization protocol is specified.
+        """
+        if protocol not in ['protobuf', 'json']:
+            raise RuntimeError("Invalid deserialization protocol: " + protocol)
+
+        # Decode config from the given protocol to protobuf.
+        config_pb = encoded_obj
+        if protocol == 'protobuf':
+            assert isinstance(config_pb, AutoTVMLog_pb2.Config)
+        elif protocol == 'json':
+            try:
+                # Pickle the opaquely-typed values that were unpickled in the json
+                # encode stage for readability.
+                if encoded_obj.get("configV1", {}).get("entities") is not None:
+                    entities = encoded_obj["configV1"]["entities"]
+                    for entity in entities:
+                        if entity.get("other_option") is not None:
+                            entity["other_option"]["value"] = str(base64.b64encode(pickle.dumps(entity["other_option"]["value"])).decode())
+
+                config_pb = json_format.Parse(
+                    json.dumps(encoded_obj),
+                    AutoTVMLog_pb2.Config()
+                )
+            except json_format.ParseError:
+                return None
+
+        # Decode entity_map.
+        entity_map = OrderedDict()
+        for entity in config_pb.config_v1.entities:
+            unpacked_ent = None
+            if entity.WhichOneof("entity") == "split":
+                unpacked_ent = SplitEntity(entity.split.size)
+            elif entity.WhichOneof("entity") == "reorder":
+                unpacked_ent = ReorderEntity(entity.reorder.permutation)
+            elif entity.WhichOneof("entity") == "annotate":
+                unpacked_ent = AnnotateEntity(entity.annotate.annotations)
+            elif entity.WhichOneof("entity") == "other_option":
+                unpickled = pickle.loads(entity.other_option.value)
+                unpacked_ent = OtherOptionEntity(unpickled)
+            else:
+                raise RuntimeError("Invalid entity instance: " + entity)
+            entity_map[entity.knob_name] = unpacked_ent
+
+        # Decode index.
+        index = config_pb.config_v1.index
+
+        # Decode code_hash.
+        code_hash = config_pb.config_v1.code_hash
+        if code_hash == "":
+            code_hash = None
+
+        # Reconstruct ConfigEntity.
+        return ConfigEntity(index, code_hash, entity_map, constraints=[])
 
     @staticmethod
     def from_json_dict(json_dict):

@@ -61,6 +61,17 @@ Our goal is to build the shared libraries:
     sudo apt-get update
     sudo apt-get install -y python3 python3-dev python3-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake libedit-dev libxml2-dev
 
+We use protoc version `libprotoc 3.12.3` to generate code from protobuf schemas.
+
+.. code:: bash
+
+    PROTOC_ZIP=protoc-3.12.3-linux-x86_64.zip
+    curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v3.12.3/$PROTOC_ZIP
+    unzip -o $PROTOC_ZIP -d /usr/local bin/protoc
+    chmod +x /usr/local/bin/protoc
+    unzip -o $PROTOC_ZIP -d /usr/local 'include/*'
+    rm -f $PROTOC_ZIP
+
 The minimal building requirements are
 
 - A recent c++ compiler supporting C++ 14 (g++-5 or higher)
@@ -191,7 +202,7 @@ Python dependencies
 
    .. code:: bash
 
-       pip3 install --user numpy decorator attrs
+       pip3 install --user numpy decorator attrs protobuf
 
    * If you want to use RPC Tracker
 

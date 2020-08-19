@@ -184,6 +184,7 @@ cat.png
 *.mlmodel
 tvm_u.*
 tvm_t.*
+python/tvm/generated
 # Mac OS X
 .DS_Store
 

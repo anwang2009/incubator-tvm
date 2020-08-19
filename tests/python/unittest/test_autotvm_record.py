@@ -34,8 +34,9 @@ def test_load_dump():
     result = MeasureResult((2.0, 2.23, 0.23, 0.123, 0.234, 0.123), MeasureErrorNo.NO_ERROR,
                            2.3, time.time())
 
-    for protocol in ['json', 'pickle']:
+    for protocol in ['json', 'protobuf']:
         row = encode(inp, result, protocol=protocol)
+        import pdb; pdb.set_trace()
         inp_2, result_2 = decode(row, protocol=protocol)
 
         assert measure_str_key(inp) == measure_str_key(inp_2), \

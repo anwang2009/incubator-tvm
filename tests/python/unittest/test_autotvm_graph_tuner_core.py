@@ -64,27 +64,33 @@ def _create_data(target, dshape, dtype, layout):
 
     costs = [0.04, 0.012, 0.03]
     config_list = []
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [3, 1]],
-                           ["tile_oc", "sp", [4, 4]],
-                           ["tile_ow", "sp", [4, 2]],
-                           ["unroll_kw", "ot", True]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [2, 8]],
-                           ["tile_oc", "sp", [1, 32]],
-                           ["tile_oh", "ot", 1],
-                           ["tile_ow", "sp", [4, 2]]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [8, 4]],
-                           ["tile_oc", "sp", [4, 8]],
-                           ["tile_ow", "sp", [2, 4]],
-                           ["unroll_kw", "ot", False]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [3, 1]}},
+                         {"knobName": "tile_oc", "split": {"size": [4, 4]}},
+                         {"knobName": "tile_ow", "split": {"size": [4, 2]}},
+                         {"knobName": "unroll_kw", "other_option": {"value": True}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [2, 8]}},
+                         {"knobName": "tile_oc", "split": {"size": [1, 32]}},
+                         {"knobName": "tile_oh", "other_option": {"value": 1}},
+                         {"knobName": "tile_ow", "split": {"size": [4, 2]}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [8, 4]}},
+                         {"knobName": "tile_oc", "split": {"size": [4, 8]}},
+                         {"knobName": "tile_ow", "split": {"size": [2, 4]}},
+                         {"knobName": "unroll_kw", "other_option": {"value": False}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
 
     records = []
     for args, cost, config, task in zip(new_args, costs, config_list, tasks):
@@ -164,27 +170,33 @@ def test_DPTuner_run():
     mod["main"] = g
     costs = [0.02, 0.02, 0.045]
     config_list = []
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [1, 3]],
-                           ["tile_oc", "sp", [2, 8]],
-                           ["tile_ow", "sp", [4, 2]],
-                           ["unroll_kw", "ot", True]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [4, 4]],
-                           ["tile_oc", "sp", [2, 16]],
-                           ["tile_oh", "ot", 1],
-                           ["tile_ow", "sp", [4, 2]]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [16, 2]],
-                           ["tile_oc", "sp", [8, 4]],
-                           ["tile_ow", "sp", [2, 4]],
-                           ["unroll_kw", "ot", False]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [1, 3]}},
+                         {"knobName": "tile_oc", "split": {"size": [2, 8]}},
+                         {"knobName": "tile_ow", "split": {"size": [4, 2]}},
+                         {"knobName": "unroll_kw", "other_option": {"value": True}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [4, 4]}},
+                         {"knobName": "tile_oc", "split": {"size": [2, 16]}},
+                         {"knobName": "tile_oh", "other_option": {"value": 1}},
+                         {"knobName": "tile_ow", "split": {"size": [4, 2]}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [16, 2]}},
+                         {"knobName": "tile_oc", "split": {"size": [8, 4]}},
+                         {"knobName": "tile_ow", "split": {"size": [2, 4]}},
+                         {"knobName": "unroll_kw", "other_option": {"value": False}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
     for cost, config, task in zip(costs, config_list, tasks):
         ms_input = MeasureInput(target=target, task=task, config=config)
         ms_output = MeasureResult(costs=(cost,), error_no=0, all_cost=-1, timestamp=-1)
@@ -211,27 +223,33 @@ def test_PBQPTuner_run():
     g, records, ltf_records, ltf_keys, tasks = _create_data(target, dshape, dtype, layout)
     costs = [0.02, 0.02, 0.045]
     config_list = []
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [1, 3]],
-                           ["tile_oc", "sp", [2, 8]],
-                           ["tile_ow", "sp", [4, 2]],
-                           ["unroll_kw", "ot", True]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [4, 4]],
-                           ["tile_oc", "sp", [2, 16]],
-                           ["tile_oh", "ot", 1],
-                           ["tile_ow", "sp", [4, 2]]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [16, 2]],
-                           ["tile_oc", "sp", [8, 4]],
-                           ["tile_ow", "sp", [2, 4]],
-                           ["unroll_kw", "ot", False]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [1, 3]}},
+                         {"knobName": "tile_oc", "split": {"size": [2, 8]}},
+                         {"knobName": "tile_ow", "split": {"size": [4, 2]}},
+                         {"knobName": "unroll_kw", "other_option": {"value": True}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [4, 4]}},
+                         {"knobName": "tile_oc", "split": {"size": [2, 16]}},
+                         {"knobName": "tile_oh", "other_option": {"value": 1}},
+                         {"knobName": "tile_ow", "split": {"size": [4, 2]}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [16, 2]}},
+                         {"knobName": "tile_oc", "split": {"size": [8, 4]}},
+                         {"knobName": "tile_ow", "split": {"size": [2, 4]}},
+                         {"knobName": "unroll_kw", "other_option": {"value": False}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
     for cost, config, task in zip(costs, config_list, tasks):
         ms_input = MeasureInput(target=target, task=task, config=config)
         ms_output = MeasureResult(costs=(cost,), error_no=0, all_cost=-1, timestamp=-1)
@@ -283,48 +301,60 @@ def test_many_sub_graphs():
 
     costs = [0.04, 0.012, 0.03, 0.02, 0.02, 0.045]
     config_list = []
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [3, 1]],
-                           ["tile_oc", "sp", [4, 4]],
-                           ["tile_ow", "sp", [4, 2]],
-                           ["unroll_kw", "ot", True]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [2, 8]],
-                           ["tile_oc", "sp", [1, 32]],
-                           ["tile_oh", "ot", 1],
-                           ["tile_ow", "sp", [4, 2]]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [8, 4]],
-                           ["tile_oc", "sp", [4, 8]],
-                           ["tile_ow", "sp", [2, 4]],
-                           ["unroll_kw", "ot", False]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [1, 3]],
-                           ["tile_oc", "sp", [2, 8]],
-                           ["tile_ow", "sp", [4, 2]],
-                           ["unroll_kw", "ot", True]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [4, 4]],
-                           ["tile_oc", "sp", [2, 16]],
-                           ["tile_oh", "ot", 1],
-                           ["tile_ow", "sp", [4, 2]]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [16, 2]],
-                           ["tile_oc", "sp", [8, 4]],
-                           ["tile_ow", "sp", [2, 4]],
-                           ["unroll_kw", "ot", False]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [3, 1]}},
+                         {"knobName": "tile_oc", "split": {"size": [4, 4]}},
+                         {"knobName": "tile_ow", "split": {"size": [4, 2]}},
+                         {"knobName": "unroll_kw", "other_option": {"value": True}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [2, 8]}},
+                         {"knobName": "tile_oc", "split": {"size": [1, 32]}},
+                         {"knobName": "tile_oh", "other_option": {"value": 1}},
+                         {"knobName": "tile_ow", "split": {"size": [4, 2]}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [8, 4]}},
+                         {"knobName": "tile_oc", "split": {"size": [4, 8]}},
+                         {"knobName": "tile_ow", "split": {"size": [2, 4]}},
+                         {"knobName": "unroll_kw", "other_option": {"value": False}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [1, 3]}},
+                         {"knobName": "tile_oc", "split": {"size": [2, 8]}},
+                         {"knobName": "tile_ow", "split": {"size": [4, 2]}},
+                         {"knobName": "unroll_kw", "other_option": {"value": True}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [4, 4]}},
+                         {"knobName": "tile_oc", "split": {"size": [2, 16]}},
+                         {"knobName": "tile_oh", "other_option": {"value": 1}},
+                         {"knobName": "tile_ow", "split": {"size": [4, 2]}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [16, 2]}},
+                         {"knobName": "tile_oc", "split": {"size": [8, 4]}},
+                         {"knobName": "tile_ow", "split": {"size": [2, 4]}},
+                         {"knobName": "unroll_kw", "other_option": {"value": False}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
 
     records = []
     new_args = new_args + new_args
@@ -386,34 +416,42 @@ def test_tuple():
     ]
     costs = [0.01, 0.012, 0.03, 0.04]
     config_list = []
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [1, 5]],
-                           ["tile_oc", "sp", [1, 2]],
-                           ["tile_ow", "sp", [4, 8]],
-                           ["unroll_kw", "ot", True]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [1, 5]],
-                           ["tile_oc", "sp", [1, 3]],
-                           ["tile_ow", "sp", [2, 16]],
-                           ["unroll_kw", "ot", False]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [1, 5]],
-                           ["tile_oc", "sp", [2, 1]],
-                           ["tile_ow", "sp", [4, 8]],
-                           ["unroll_kw", "ot", True]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [1, 5]],
-                           ["tile_oc", "sp", [3, 1]],
-                           ["tile_ow", "sp", [2, 16]],
-                           ["unroll_kw", "ot", False]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [1, 5]}},
+                         {"knobName": "tile_oc", "split": {"size": [1, 2]}},
+                         {"knobName": "tile_ow", "split": {"size": [4, 8]}},
+                         {"knobName": "unroll_kw", "other_option": {"value": True}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [1, 5]}},
+                         {"knobName": "tile_oc", "split": {"size": [1, 3]}},
+                         {"knobName": "tile_ow", "split": {"size": [2, 16]}},
+                         {"knobName": "unroll_kw", "other_option": {"value": False}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [1, 5]}},
+                         {"knobName": "tile_oc", "split": {"size": [2, 1]}},
+                         {"knobName": "tile_ow", "split": {"size": [4, 8]}},
+                         {"knobName": "unroll_kw", "other_option": {"value": True}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [1, 5]}},
+                         {"knobName": "tile_oc", "split": {"size": [3, 1]}},
+                         {"knobName": "tile_ow", "split": {"size": [2, 16]}},
+                         {"knobName": "unroll_kw", "other_option": {"value": False}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
 
     records = []
     new_args = new_args + new_args
@@ -478,48 +516,60 @@ def test_triangle_block():
     ]
     costs = [0.04, 0.012, 0.03, 0.02, 0.02, 0.045]
     config_list = []
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [3, 1]],
-                           ["tile_oc", "sp", [4, 4]],
-                           ["tile_ow", "sp", [4, 2]],
-                           ["unroll_kw", "ot", True]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [2, 8]],
-                           ["tile_oc", "sp", [1, 32]],
-                           ["tile_oh", "ot", 1],
-                           ["tile_ow", "sp", [4, 2]]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [8, 4]],
-                           ["tile_oc", "sp", [4, 8]],
-                           ["tile_ow", "sp", [2, 4]],
-                           ["unroll_kw", "ot", False]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [1, 3]],
-                           ["tile_oc", "sp", [2, 8]],
-                           ["tile_ow", "sp", [4, 2]],
-                           ["unroll_kw", "ot", True]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [4, 4]],
-                           ["tile_oc", "sp", [2, 16]],
-                           ["tile_oh", "ot", 1],
-                           ["tile_ow", "sp", [4, 2]]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"index": -1,
-                "code_hash": None,
-                "entity": [["tile_ic", "sp", [16, 2]],
-                           ["tile_oc", "sp", [8, 4]],
-                           ["tile_ow", "sp", [2, 4]],
-                           ["unroll_kw", "ot", False]]}
-    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [3, 1]}},
+                         {"knobName": "tile_oc", "split": {"size": [4, 4]}},
+                         {"knobName": "tile_ow", "split": {"size": [4, 2]}},
+                         {"knobName": "unroll_kw", "other_option": {"value": True}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [2, 8]}},
+                         {"knobName": "tile_oc", "split": {"size": [1, 32]}},
+                         {"knobName": "tile_oh", "other_option": {"value": 1}},
+                         {"knobName": "tile_ow", "split": {"size": [4, 2]}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [8, 4]}},
+                         {"knobName": "tile_oc", "split": {"size": [4, 8]}},
+                         {"knobName": "tile_ow", "split": {"size": [2, 4]}},
+                         {"knobName": "unroll_kw", "other_option": {"value": False}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [1, 3]}},
+                         {"knobName": "tile_oc", "split": {"size": [2, 8]}},
+                         {"knobName": "tile_ow", "split": {"size": [4, 2]}},
+                         {"knobName": "unroll_kw", "other_option": {"value": True}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [4, 4]}},
+                         {"knobName": "tile_oc", "split": {"size": [2, 16]}},
+                         {"knobName": "tile_oh", "other_option": {"value": 1}},
+                         {"knobName": "tile_ow", "split": {"size": [4, 2]}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
+    cfg_dict = {
+        "configV1": {
+            "index": 0,
+            "code_hash": None,
+            "entities": [{"knobName": "tile_ic", "split": {"size": [16, 2]}},
+                         {"knobName": "tile_oc", "split": {"size": [8, 4]}},
+                         {"knobName": "tile_ow", "split": {"size": [2, 4]}},
+                         {"knobName": "unroll_kw", "other_option": {"value": False}}]}}
+    config_list.append(ConfigEntity.decode(cfg_dict))
 
     records = []
     new_args = new_args + new_args

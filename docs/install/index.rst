@@ -29,4 +29,4 @@ If you would like to quickly try out TVM or do demo/tutorials, checkout :ref:`do
    :maxdepth: 2
 
    from_source
-   docker
+

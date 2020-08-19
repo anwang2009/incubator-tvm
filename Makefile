@@ -39,7 +39,7 @@ PKG_CFLAGS = -std=c++11 -Wall -O2 $(INCLUDE_FLAGS) -fPIC
 PKG_LDFLAGS =
 
 
-all:
+all: proto
 	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && $(MAKE)
 
 runtime:
@@ -54,9 +54,10 @@ cpptest:
 crttest:
 	@mkdir -p build && cd build && cmake .. && $(MAKE) crttest
 
-proto:
-	protoc -I=$(ROOTDIR)/proto --proto_path=$(ROOTDIR)/proto\
-		--python_out=$(ROOTDIR)/python/tvm/generated $(ROOTDIR)/proto
+proto: python/tvm/generated/AutoTVMLog_pb2.py
+	protoc -I=$(ROOTDIR)/proto --proto_path=$(ROOTDIR)/proto \
+		--python_out=$(ROOTDIR)/python/tvm/generated $(ROOTDIR)/proto/* \
+	  --mypy_out=$(ROOTDIR)/python/tvm/generated
 
 # EMCC; Web related scripts
 EMCC_FLAGS= -std=c++11 -DDMLC_LOG_STACK_TRACE=0\

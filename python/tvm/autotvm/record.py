@@ -19,24 +19,32 @@
 """Tuning record and serialization format"""
 
 import argparse
-import base64
+import inspect
 import logging
 import multiprocessing
-import pickle
 import json
 import time
 import os
 import itertools
 from collections import OrderedDict
 import numpy as np
+from google.protobuf import json_format
+from google.protobuf import message
+from tvm import runtime
+from tvm.autotvm.util import get_const_tuple
+from tvm.generated import AutoTVMLog_pb2
+from tvm.ir import container
+from tvm.te import tensor, placeholder
+from tvm.tir import expr
 
 from .. import build, lower, target as _target
 from .. import __version__
 from . import task
 from .task import ConfigEntity, ApplyHistoryBest
 from .measure import MeasureInput, MeasureResult
+from .task.space import SplitEntity, ReorderEntity, AnnotateEntity, OtherOptionEntity
 
-AUTOTVM_LOG_VERSION = 0.2
+AUTOTVM_LOG_VERSION = "0.3"
 _old_version_warning = True
 logger = logging.getLogger('autotvm')
 
@@ -67,68 +75,165 @@ def measure_str_key(inp, include_config=True):
         The str representation of key
     """
     config_str = str(inp.config) if include_config else ""
-    return "".join([str(inp.target), inp.task.name, str(inp.task.args),
-                    str(inp.task.kwargs), config_str])
+
+    # Consolidate args and kwargs to kwargs only for clarity.
+    arg_names = inspect.getfullargspec(inp.task.func.fcustomized).args
+    assert len(arg_names) == len(inp.task.args) + len(inp.task.kwargs)
+
+    kwargs = {}
+    # First translate args to kwargs.
+    for i, arg in enumerate(inp.task.args):
+        kwargs[arg_names[i]] = arg
+
+    # The remaining arg_names which were not used in translation should
+    # exist in inp.task.kwargs.
+    for arg_name in arg_names[len(inp.task.args):]:
+        assert arg_name in inp.task.kwargs
+        kwargs[arg_name] = inp.task.kwargs[arg_name]
+
+    return "".join([str(inp.target), inp.task.name, str(kwargs), config_str])
+
+
+def encode_task_arg_to_pb(arg):
+    """Encodes task argument as TaskArgument protobuf object.
+
+    Parameters
+    ----------
+    arg : Any
+        Argument for an AutoTVM Task.
+
+    Returns
+    -------
+    ret: TaskArgument
+        The TaskArgument protobuf object encoded from `arg`
+    """
+    # Preprocess arg
+    if isinstance(arg, (expr.StringImm, expr.IntImm, expr.FloatImm)):
+        arg = arg.value
+    if isinstance(arg, runtime.container.String):
+        arg = str(arg)
+
+    arg_pb = AutoTVMLog_pb2.TaskArgument()
+    if isinstance(arg, (tuple, list, container.Array)):
+        for a in arg:
+            arg_pb.arg_list.arguments.append(encode_task_arg_to_pb(a))
+    if isinstance(arg, tensor.Tensor):
+        arg_pb.tensor.shape = get_const_tuple(arg.shape)
+        arg_pb.tensor.dtype = arg.dtype
+    if isinstance(arg, str):
+        arg_pb.string = arg
+    if isinstance(arg, (int, np.int)):
+        arg_pb.int32 = arg
+    if isinstance(arg, (float, np.float)):
+        arg_pb.double = arg
+    if isinstance(arg, expr.Var):
+        arg_pb.expr_var.name = arg.name
+        arg_pb.expr_var.dtype = arg.dtype
+
+    return arg_pb
+
+
+def decode_task_arg_from_pb(arg_pb):
+    """Decodes task argument from TaskArgument protobuf object.
+
+    Parameters
+    ----------
+    arg_pb : AutoTVMLog_pb.TaskArgument
+        Protobuf representation of an argument for an AutoTVM Task.
+
+    Returns
+    -------
+    ret: Any
+        Argument for an AutoTVM Task.
+    """
+    if arg_pb.WhichOneof("arg") == "arg_list":
+        return tuple([decode_task_arg_from_pb(a) for a in arg_pb.arg_list])
+    if arg_pb.WhichOneof("arg") == "tensor":
+        return placeholder(arg_pb.tensor.shape, arg_pb.tensor.dtype)
+    if arg_pb.WhichOneof("arg") == "string":
+        return arg_pb.string
+    if arg_pb.WhichOneof("arg") == "int32":
+        return arg_pb.int32
+    if arg_pb.WhichOneof("arg") == "double":
+        return arg_pb.double
+    if arg_pb.WhichOneof("arg") == "expr_var":
+        return expr.Var(arg_pb.name, arg_pb.dtype)
+    return arg_pb
 
 
 def encode(inp, result, protocol='json'):
-    """encode (MeasureInput, MeasureResult) pair to a string
+    """Encode (MeasureInput, MeasureResult) pair to a string.
 
     Parameters
     ----------
     inp: autotvm.tuner.MeasureInput
     result: autotvm.tuner.MeasureResult
-        pair of input/result
-    protocol: str
-        log protocol, json or pickle
+        Pair of input/result.
+    protocol: str, optional
+        Serialization protocol that is one of (protobuf, json), by default json.
 
     Returns
     -------
     row: str
-        a row in the logger file
+        A row in the logger file.
     """
 
+    # NOTE: For protobuf-generated objects we cannot directly assign
+    # to a non-primitive field.
+    log_pb = AutoTVMLog_pb2.AutoTVMLog()
+    log_pb.target.target_string = str(inp.target)
+
+    # Encode task info.
+    log_pb.task.task_name = inp.task.name
+    # From TaskTemplate: When the customized func is registered,
+    # compute and schedule function will be ignored
+    arg_names = None
+    if inp.task.func.fcustomized is not None:
+        arg_names = inspect.getfullargspec(inp.task.func.fcustomized).args
+    elif inp.task.func.fcompute is not None:
+        arg_names = inspect.getfullargspec(inp.task.func.fcompute).args
+    else:
+        raise RuntimeError("Attempted to produce AutoTVM log but neither default nor " +
+                           "custom function is provided to the task.")
+
+    assert len(inp.task.args) == len(arg_names)
+
+    for i in range(len(inp.task.args)):
+        task_kwarg_pb = AutoTVMLog_pb2.TaskKeywordArgument()
+        task_kwarg_pb.keyword = arg_names[i]
+        task_kwarg_pb.arg.CopyFrom(encode_task_arg_to_pb(inp.task.args[i]))
+        log_pb.task.kwargs.append(task_kwarg_pb)
+
+    # Encode config info.
+    log_pb.config.CopyFrom(inp.config.encode(protocol="protobuf"))
+
+    # Encode tuning result.
+    log_pb.result.costs.extend(result.costs if result.error_no == 0 else (1e9,))
+    log_pb.result.error_no = result.error_no
+    log_pb.result.all_cost = result.all_cost
+    log_pb.result.timestamp = result.timestamp
+
+    # Encode version info.
+    log_pb.version = AUTOTVM_LOG_VERSION
+    log_pb.tvm_version = __version__
+
+    # Serialize protobuf to the requested protocol.
+    if protocol == 'protobuf':
+        return log_pb.SerializeToString()
     if protocol == 'json':
-        json_dict = {
-            "input": (str(inp.target),
-                      inp.task.name, inp.task.args, inp.task.kwargs),
-
-            "config": inp.config.to_json_dict(),
-
-            "result": (result.costs if result.error_no == 0 else (1e9,),
-                       result.error_no,
-                       result.all_cost,
-                       result.timestamp),
-
-            "version": AUTOTVM_LOG_VERSION,
-
-            "tvm_version": __version__
-        }
-        return json.dumps(json_dict)
-    if protocol == 'pickle':
-        row = (str(inp.target),
-               str(base64.b64encode(pickle.dumps([inp.task.name,
-                                                  inp.task.args,
-                                                  inp.task.kwargs])).decode()),
-               str(base64.b64encode(pickle.dumps(inp.config)).decode()),
-               str(base64.b64encode(pickle.dumps(tuple(result))).decode()),
-               str(AUTOTVM_LOG_VERSION),
-               str(__version__))
-        return '\t'.join(row)
-
-    raise RuntimeError("Invalid log protocol: " + protocol)
+        return json.dumps(json_format.MessageToDict(log_pb))
+    raise RuntimeError("Invalid serialization protocol: " + protocol)
 
 
 def decode(row, protocol='json'):
-    """Decode encoded record string to python object
+    """Decode encoded record string to python object.
 
     Parameters
     ----------
-    row : str
-        a row in the logger file
-
-    protocol : str
-        log protocol, json or pickle
+    row : Optional[str]
+        A row in the logger file. None if decoding fails.
+    protocol : str, optional
+        Serialization protocol that is one of (protobuf, json), by default json.
 
     Returns
     -------
@@ -138,57 +243,56 @@ def decode(row, protocol='json'):
     # pylint: disable=unused-variable
     global _old_version_warning
 
-    if protocol == 'json':
-        row = json.loads(row)
-        if 'v' in row and row['v'] == 0.1:
-            if _old_version_warning:
-                logger.warning("AutoTVM log version 0.1 is no longer supported.")
-                _old_version_warning = False
-            return None
+    if protocol not in ['protobuf', 'json']:
+        raise RuntimeError("Invalid deserialization protocol: " + protocol)
 
-        tgt, task_name, task_args, task_kwargs = row["input"]
-        tgt = str(tgt)
-        if "-target" in tgt:
-            logger.warning("\"-target\" is deprecated, use \"-mtriple\" instead.")
-            tgt = tgt.replace("-target", "-mtriple")
-        tgt = _target.create(str(tgt))
+    # Decode log from the given protocol to protobuf.
+    log_pb = None
+    if protocol == 'protobuf':
+        try:
+            log_pb = AutoTVMLog_pb2.AutoTVMLog.FromString(row)
+        except message.DecodeError:
+            logger.warning("Failed to decode log to protobuf")
+    elif protocol == 'json':
+        try:
+            # import pdb; pdb.set_trace()
+            log_pb = json_format.Parse(row, AutoTVMLog_pb2.AutoTVMLog())
+        except json_format.ParseError:
+            logger.warning("Failed to parse log to json and convert to protobuf")
+            raise ValueError("wtf")
 
-        def clean_json_to_python(x):
-            """1. Convert all list in x to tuple (hashable)
-               2. Convert unicode to str for python2
-            """
-            if isinstance(x, list):
-                return tuple([clean_json_to_python(a) for a in x])
-            if isinstance(x, _unicode):
-                return str(x)
-            if isinstance(x, (_long, int)):
-                return int(x)
-            return x
+    if log_pb is None:
+        if _old_version_warning:
+            logger.warning("AutoTVM log version has been updated to 0.3")
+            _old_version_warning = False
+        return None
 
-        tsk = task.Task(clean_json_to_python(task_name), clean_json_to_python(task_args))
-        config = ConfigEntity.from_json_dict(row["config"])
-        inp = MeasureInput(tgt, tsk, config)
-        result = MeasureResult(*[tuple(x) if isinstance(x, list) else x for x in row["result"]])
-        config.cost = np.mean(result.costs)
+    # Decode task info from protobuf.
+    kwargs = {}
+    for kwarg in log_pb.task.kwargs:
+        kwargs[kwarg.keyword] = decode_task_arg_from_pb(kwarg.arg)
 
-        return inp, result
-    if protocol == 'pickle':
-        items = row.split("\t")
-        if len(items) == 4:
-            if _old_version_warning:
-                logger.warning("AutoTVM log version 0.1 is no longer supported.")
-                _old_version_warning = False
-            return None
-        tgt = _target.create(items[0])
-        task_tuple = pickle.loads(base64.b64decode(items[1].encode()))
-        config = pickle.loads(base64.b64decode(items[2].encode()))
-        result = MeasureResult(*pickle.loads(base64.b64decode(items[3].encode())))
-        config.cost = np.mean(result.costs)
+    tgt = str(log_pb.target.target_string)
+    if "-target" in tgt:
+        logger.warning("\"-target\" is deprecated, use \"-mtriple\" instead.")
+        tgt = tgt.replace("-target", "-mtriple")
+    tgt = _target.create(str(tgt))
+    tsk = task.Task(log_pb.task.task_name, args=(), kwargs=kwargs)
 
-        tsk = task.Task(task_tuple[0], task_tuple[1])
-        return MeasureInput(tgt, tsk, config), result
+    # Decode config info from protobuf.
+    config = ConfigEntity.decode(log_pb.config, protocol='protobuf')
 
-    raise RuntimeError("Invalid log protocol: " + protocol)
+    # Decode tuning result from protobuf.
+    result = MeasureResult(
+        tuple(log_pb.result.costs),
+        log_pb.result.error_no,
+        log_pb.result.all_cost,
+        log_pb.result.timestamp
+    )
+    config.cost = np.mean(result.costs)
+    inp = MeasureInput(tgt, tsk, config)
+
+    return inp, result
 
 
 def load_from_file(filename):

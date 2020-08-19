@@ -1,0 +1,146 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+syntax = "proto3";
+package autotvm.log;
+
+
+message AutoTVMLog {
+  // The compilation target.
+  Target target = 1;
+  // Represents a tuning task.
+  Task task = 2;
+  // The configuration used by this task.
+  Config config = 3;
+  // Tuning result.
+  Result result = 4; 
+  // SemVer string describing the AutoTVM log format version.
+  string version = 5;
+  // SemVer string with qualifiers attached as a suffix. e.g. "0.7.dev1".
+  string tvm_version = 6;
+}
+
+message Target {
+  // For now this is the string representation of a target; e.g. "llvm -mcpu=broadwell"
+  // This should be replaced once the rfc "TVM Target specification" is finalized
+  string target_string = 1;
+}
+
+message Task {
+  // Human-readable task name.
+  string task_name = 1;
+  // List of keyword arguments where the key indicates argument name.
+  // A List is used because ProtoBuf doesn't preserve ordering of map items.
+  repeated TaskKeywordArgument kwargs = 2;
+}
+
+message TaskKeywordArgument {
+  // Keyword for an argument.
+  string keyword = 1;
+  // Argument for a task.
+  TaskArgument arg = 2;
+}
+
+message TaskArgument {
+  oneof arg {
+    TaskArgumentList arg_list = 1;
+    Tensor tensor = 2;
+    string string = 3;
+    int32 int32 = 4;
+    double double = 5;
+    ExprVar expr_var = 6;
+  }
+}
+
+message Tensor {
+  // Shape of the tensor.
+  repeated uint32 shape = 1;
+  // Indicates a numpy dtype.
+  string dtype = 2;
+}
+
+message TaskArgumentList {
+  repeated TaskArgument arguments = 1;
+}
+
+message ExprVar {
+  // Name of the var.
+  string name = 1;
+  // Dtype of the var.
+  string dtype = 2;
+}
+
+// Config for AutoTVM v1.
+message Config_v1 {
+  // The code hash.
+  string code_hash = 1;
+  // List of entities used for the configuration.
+  repeated Entity entities = 2;
+  // Index of this config in the search space.
+  uint32 index = 3;
+}
+
+message Config {
+  oneof config {
+    Config_v1 config_v1 = 1;
+  }
+}
+
+message Entity {
+  // Entities are previously output as `[["tile_ow", "sp", [-1, 1]], <other_entities>]`
+  // The proposed encoding clarifies entity type in the schema itself instead of as a string
+  string knob_name = 1;
+  oneof entity {
+    SplitEntity split = 2;
+    ReorderEntity reorder = 3;
+    AnnotateEntity annotate = 4;
+    OtherOptionEntity other_option = 5;
+  }
+}
+
+message SplitEntity {
+  // List indicating size of the split.
+  repeated int32 size = 1;
+}
+
+message ReorderEntity {
+  // Permutation of the reorder.
+  repeated uint32 permutation = 1;
+}
+
+message AnnotateEntity {
+  // List of annotations.
+  repeated string annotations = 1;
+}
+
+message OtherOptionEntity {
+  // Arbitrary value from a larger set of options.
+  // NOTE: The bytes value is encoded and decoded via pickle. Pickling
+  // is not safe against maliciously constructed data.
+  bytes value = 1;
+}
+
+message Result {
+  // The measured runtime costs of this configuration.
+  repeated double costs = 1;
+  // The error type defined by MeasureErrorNo.
+  int32 error_no = 2;
+  // End-to-end cost of benchmarking, including rpc, compilation, test runs.
+  double all_cost = 3;
+  // ISO-8601 formatted timestamp.
+  double timestamp = 4;
+}

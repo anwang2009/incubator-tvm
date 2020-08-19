@@ -26,7 +26,7 @@
 
 # Add files or directories to the blacklist. They should be base names, not
 # paths.
-ignore=CVS, _cy2, _cy3, grammar
+ignore=CVS, _cy2, _cy3, grammar, generated
 
 # Add files or directories matching the regex patterns to the blacklist. The
 # regex matches against base names, not paths.
